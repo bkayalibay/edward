@@ -22,8 +22,8 @@ class VariationalInference(Inference):
   def __init__(self, *args, **kwargs):
     super(VariationalInference, self).__init__(*args, **kwargs)
 
-  def initialize(self, optimizer=None, var_list=None, use_prettytensor=False,
-                 *args, **kwargs):
+  def initialize(self, optimizer=None, var_list=None, global_step=None,
+                 use_prettytensor=False, *args, **kwargs):
     """Initialize variational inference.
 
     Parameters
@@ -65,7 +65,7 @@ class VariationalInference(Inference):
 
     if optimizer is None:
       # Use ADAM with a decaying scale factor.
-      global_step = tf.Variable(0, trainable=False)
+      global_step = tf.Variable(0, trainable=False) if global_step is None else global_step
       starter_learning_rate = 0.1
       learning_rate = tf.train.exponential_decay(starter_learning_rate,
                                                  global_step,
@@ -89,10 +89,9 @@ class VariationalInference(Inference):
       else:
         raise ValueError('Optimizer class not found:', optimizer)
 
-      global_step = None
     elif isinstance(optimizer, tf.train.Optimizer):
-      # Custom optimizers have no control over global_step.
-      global_step = None
+      # Changed from: global_step = None to:
+      pass 
     else:
       raise TypeError()
 
