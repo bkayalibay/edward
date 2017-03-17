@@ -431,9 +431,11 @@ def build_reparam_kl_loss_and_gradients(inference, var_list):
 
   p_log_lik = tf.stack(p_log_lik)
 
-  kl = tf.reduce_sum([tf.maximum(inference.kl_min,
+  kl_losses = [tf.maximum(inference.kl_min,
       inference.kl_scaling.get(z, 1.0) * tf.reduce_sum(ds.kl(qz, z)))
-      for z, qz in six.iteritems(inference.latent_vars)])
+      for z, qz in six.iteritems(inference.latent_vars)]
+  kl = tf.reduce_sum(kl_losses)
+  inference.mean_kl = tf.reduce_mean(kl_losses)
 
   loss = -(tf.reduce_mean(p_log_lik) - kl)
 

@@ -128,7 +128,7 @@ class VariationalInference(Inference):
         feed_dict[key] = value
 
     sess = get_session()
-    _, t, loss = sess.run([self.train, self.increment_t, self.loss], feed_dict)
+    _, t, loss, mean_kl = sess.run([self.train, self.increment_t, self.loss, self.mean_kl], feed_dict)
 
     if self.debug:
       sess.run(self.op_check)
@@ -139,7 +139,7 @@ class VariationalInference(Inference):
           summary = sess.run(self.summarize, feed_dict)
           self.train_writer.add_summary(summary, t)
 
-    return {'t': t, 'loss': loss}
+    return {'t': t, 'loss': loss, 'mean_kl': mean_kl}
 
   def print_progress(self, info_dict):
     """Print progress to output.
