@@ -55,7 +55,7 @@ class KLqp(VariationalInference):
     super(KLqp, self).__init__(*args, **kwargs)
 
   def initialize(self, n_samples=1, kl_scaling=None, 
-                 kl_min=0.0, obj_scale=1.0, *args, **kwargs):
+                 kl_min=0.0, *args, **kwargs):
     """Initialization.
 
     Parameters
@@ -74,7 +74,6 @@ class KLqp(VariationalInference):
     kl_min: sets a lower bound on the kl divergence, used to train with
             'Free bits'-based losses. 
             See: https://arxiv.org/abs/1606.04934
-    obj_scale: Scales the loss using loss *= obj_scale
     """
     if kl_scaling is None:
       kl_scaling = {}
@@ -82,7 +81,6 @@ class KLqp(VariationalInference):
     self.n_samples = n_samples
     self.kl_scaling = kl_scaling
     self.kl_min = kl_min
-    self.obj_scale = obj_scale
     return super(KLqp, self).initialize(*args, **kwargs)
 
   def build_loss_and_gradients(self, var_list):
@@ -421,8 +419,7 @@ def build_reparam_kl_loss_and_gradients(inference, var_list):
 
     for z, qz in six.iteritems(inference.latent_vars):
       # Copy q(z) to obtain new set of posterior samples.
-      nonce = str(np.random.randint(0,1e6)) # ugly, ugly hack to work around an issue
-      qz_copy = copy(qz, scope=scope+nonce)
+      qz_copy = copy(qz, scope=scope)
       dict_swap[z] = qz_copy.value()
 
     for x in six.iterkeys(inference.data):
@@ -438,7 +435,6 @@ def build_reparam_kl_loss_and_gradients(inference, var_list):
       for z, qz in six.iteritems(inference.latent_vars)])
 
   loss = -(tf.reduce_mean(p_log_lik) - kl)
-  loss *= inference.obj_scale
 
   grads = tf.gradients(loss, [v._ref() for v in var_list])
   grads_and_vars = list(zip(grads, var_list))
