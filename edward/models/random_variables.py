@@ -10,7 +10,7 @@ from edward.models.random_variable import RandomVariable
 from tensorflow.contrib import distributions
 
 # Logistic distribution:
-from edward.models.logistic import Logistic
+from edward.models.logistic import Logistic, DiscretizedLogistic
 
 class Empirical(RandomVariable, distributions_Empirical):
   def __init__(self, *args, **kwargs):
@@ -39,3 +39,7 @@ for _name in sorted(dir(distributions)):
 # For logistic distribution:
 params = {'__doc__': Logistic.__doc__}
 _globals['Logistic'] = type('Logistic', (RandomVariable, Logistic), params)
+
+# For discretized logistic distribution:
+params = {'__doc__': DiscretizedLogistic.__doc__}
+_globals['DiscretizedLogistic'] = type('DiscretizedLogistic', (RandomVariable, DiscretizedLogistic), params)

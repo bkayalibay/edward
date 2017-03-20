@@ -213,3 +213,19 @@ class Logistic(distribution.Distribution):
     """Standardize input `x` to a unit logistic."""
     with ops.name_scope("standardize", values=[x]):
       return (x - self.loc) / self.scale
+
+class DiscretizedLogistic(Logistic):
+  def __init__(self, *args, **kwargs):
+    self.binsize = 1. / 256
+    super(DiscretizedLogistic, self).__init__(*args, **kwargs)
+
+  def _log_prob(self, x):
+    binsize = self.binsize
+    z = self._z(x)
+    logp = math_ops.log(math_ops.sigmoid(z + binsize / self.scale) - math_ops.sigmoid(z) + 1e-7)
+    return logp
+
+  def _z(self, x):
+    binsize = self.binsize
+    with ops.name_scope("standardize", values=[x]):
+      return (math_ops.floordiv(x, binsize) * binsize - self.loc) / self.scale
