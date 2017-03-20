@@ -9,6 +9,8 @@ from edward.models.point_mass import PointMass as distributions_PointMass
 from edward.models.random_variable import RandomVariable
 from tensorflow.contrib import distributions
 
+# Logistic distribution:
+from edward.models.logistic import Logistic
 
 class Empirical(RandomVariable, distributions_Empirical):
   def __init__(self, *args, **kwargs):
@@ -33,3 +35,7 @@ for _name in sorted(dir(distributions)):
     _globals[_name] = type(_name, (RandomVariable, _candidate), params)
 
     del _candidate
+
+# For logistic distribution:
+params = {'__doc__': Logistic.__doc__}
+_globals['Logistic'] = type('Logistic', (RandomVariable, Logistic), params)
