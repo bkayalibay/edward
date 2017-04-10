@@ -413,7 +413,9 @@ def build_reparam_kl_loss_and_gradients(inference, var_list):
 
     for z, qz in six.iteritems(inference.latent_vars):
       # Copy q(z) to obtain new set of posterior samples.
-      qz_copy = copy(qz, scope=scope)
+      import numpy as np
+      nonce = str(np.random.randint(0, 1e6))
+      qz_copy = copy(qz, scope=scope+nonce)
       dict_swap[z] = qz_copy.value()
 
     for x in six.iterkeys(inference.data):
