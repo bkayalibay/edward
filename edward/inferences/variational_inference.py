@@ -128,7 +128,12 @@ class VariationalInference(Inference):
         feed_dict[key] = value
 
     sess = get_session()
-    _, t, loss, mean_kl = sess.run([self.train, self.increment_t, self.loss, self.mean_kl], feed_dict)
+    if hasattr(self, 'mean_kl'):
+      _, t, loss, mean_kl = sess.run([self.train, self.increment_t, self.loss, self.mean_kl], feed_dict)
+      ret_dict = {'t': t, 'loss': loss, 'mean_kl': mean_kl}
+    else:
+      _, t, loss = sess.run([self.train, self.increment_t, self.loss], feed_dict)
+      ret_dict = {'t': t, 'loss': loss}
 
     if self.debug:
       sess.run(self.op_check)
@@ -139,7 +144,7 @@ class VariationalInference(Inference):
           summary = sess.run(self.summarize, feed_dict)
           self.train_writer.add_summary(summary, t)
 
-    return {'t': t, 'loss': loss, 'mean_kl': mean_kl}
+    return ret_dict
 
   def print_progress(self, info_dict):
     """Print progress to output.
