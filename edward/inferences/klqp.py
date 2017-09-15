@@ -458,9 +458,13 @@ def build_reparam_kl_loss_and_gradients(inference, var_list):
 
   p_log_lik = tf.reduce_mean(p_log_lik)
 
-  kl_penalty = tf.reduce_sum([
-      tf.reduce_sum(inference.kl_scaling.get(z, 1.0) * kl_divergence(qz, z))
-      for z, qz in six.iteritems(inference.latent_vars)])
+  scope = base_scope + tf.get_default_graph().unique_name("sample")
+  kl_penalty = []
+  for z, qz in six.iteritems(inference.latent_vars):
+    z_copy = copy(z, dict_swap, scope=scope)
+    kl_penalty.append(tf.reduce_sum(
+        inference.kl_scaling.get(z, 1.0) * kl_divergence(qz, z_copy)))
+  kl_penalty = tf.reduce_sum(kl_penalty)
 
   if inference.logging:
     tf.summary.scalar("loss/p_log_lik", p_log_lik,
