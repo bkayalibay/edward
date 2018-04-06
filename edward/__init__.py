@@ -16,7 +16,8 @@ from edward.inferences import (
     KLpq, KLqp, ReparameterizationKLqp, ReparameterizationKLKLqp,
     ReparameterizationEntropyKLqp, ReplicaExchangeMC, ScoreKLqp, ScoreKLKLqp,
     ScoreEntropyKLqp, ScoreRBKLqp, WakeSleep, GANInference, BiGANInference,
-    WGANInference, ImplicitKLqp, MAP, Laplace, complete_conditional, Gibbs)
+    WGANInference, ImplicitKLqp, MAP, Laplace, complete_conditional, Gibbs,
+    SVGD)
 from edward.models import RandomVariable
 from edward.util import (
     check_data, check_latent_vars, copy, dot,
@@ -63,6 +64,7 @@ _allowed_symbols = [
     'Laplace',
     'complete_conditional',
     'Gibbs',
+    'SVGD',
     'RandomVariable',
     'check_data',
     'check_latent_vars',
