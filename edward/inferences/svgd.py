@@ -19,7 +19,7 @@ class SVGD:
         Parameters
         ----------
 
-        particles: dict of ed.RandomVariable: tf.Variable (the particles)
+        particles: dict of ed.RandomVariable: list of tf.Variable
 
         data: dict of ed.RandomVariable: tf.Tensor/ed.RandomVariable
 
