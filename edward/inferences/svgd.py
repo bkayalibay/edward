@@ -9,6 +9,14 @@ import numpy as np
 import edward as ed
 from edward.util import copy
 
+from collections import OrderedDict
+
+
+def check_variables(particles):
+    for p in particles:
+        variables = ed.get_variables(p)
+        assert len(variables) == 1
+
 
 class SVGD:
     """Stein Variational Gradient Descent."""
@@ -19,7 +27,7 @@ class SVGD:
         Parameters
         ----------
 
-        particles: dict of ed.RandomVariable: list of tf.Variable
+        particles: dict of ed.RandomVariable: ed.models.Empirical
 
         data: dict of ed.RandomVariable: tf.Tensor/ed.RandomVariable
 
@@ -41,14 +49,27 @@ class SVGD:
         return {'p_log_lik': p_log_lik}
 
     def build_loss_and_gradients(self):
-        n_particles = len(list(six.itervalues(self.latent_vars))[0])
+        # We want a fixed order of iteration in the loop over particles:
+        latent_vars = list(six.iteritems(self.latent_vars))
+        if not isinstance(latent_vars, list):
+            latent_vars = [latent_vars]
+
+        # Obtain number of particles used:
+        sample_set = latent_vars[0][1]
+        n_particles = int(sample_set.params.shape[0])
+
+        _, all_particles = list(zip(*latent_vars))
+
+        check_variables(all_particles)
 
         p_log_lik = [0.0] * n_particles
+        dict_swaps = []
         for i in range(n_particles):
-            dict_swap = {}
+            dict_swap = OrderedDict()
 
-            for z, particles in six.iteritems(self.latent_vars):
-                qz = particles[i]
+            particle_set = []
+            for z, particles in latent_vars:
+                qz = particles.params[i]
                 dict_swap[z] = qz
                 p_log_lik[i] += tf.reduce_sum(z.log_prob(qz))
 
@@ -56,28 +77,21 @@ class SVGD:
                 x_copy = copy(x, dict_swap, scope="particles_{}".format(i))
                 p_log_lik[i] += tf.reduce_sum(x_copy.log_prob(qx))
 
-        particles = [
-            particle_set
-            for particle_set in six.itervalues(self.latent_vars)
-        ]
+            dict_swaps.append(dict_swap)
 
-        # (n_latent_vars, n_particles, latent_dim) becomes:
-        # (n_particles, n_latent_vars, latent_dim)
-        # latent_dim is different accross latent_vars
-        particles = list(zip(*particles))
+        used_particles = [[particle for particle in six.itervalues(dict_swap)]
+                          for dict_swap in dict_swaps]
 
         def flatten(xs):
             return tf.concat([tf.reshape(x, (-1,)) for x in xs], axis=0)
 
         def unflatten(flat_grads_set):
-            sample_set = particles[0]  # look at any particle set
+            sample_set = used_particles[0]  # look at any particle set
             var_sizes = [int(np.prod(var.shape)) for var in sample_set]
             var_shapes = [var.shape for var in sample_set]
 
             unflat_grads_set = []
-            for fg_set in tf.split(flat_grads_set,
-                                   flat_grads_set.shape[0],
-                                   axis=0):
+            for fg_set in tf.split(flat_grads_set, n_particles):
                 fg_set = tf.squeeze(fg_set)
                 flat_grads = tf.split(fg_set, var_sizes)
                 unflat_grads = [tf.reshape(flat_grad, var_shape)
@@ -86,14 +100,18 @@ class SVGD:
                 unflat_grads_set.append(unflat_grads)
             return unflat_grads_set
 
+        def stitch_updates(particle_updates):
+            particle_updates = list(zip(*particle_updates))
+            return [tf.stack(ps) for ps in particle_updates]
+
         self.p_log_lik = p_log_lik
 
-        flattened_particles = tf.stack([flatten(ps) for ps in particles])
+        flattened_particles = tf.stack([flatten(ps) for ps in used_particles])
         cov = self.kernel_fn(flattened_particles)  # (n_particles, n_particles)
 
         log_p_gradients = tf.stack(
             [flatten(tf.gradients(log_p, particle_set))
-             for log_p, particle_set in zip(p_log_lik, particles)]
+             for log_p, particle_set in zip(p_log_lik, used_particles)]
         )  # (n_particles, particle_dim)
 
         # Data term:
@@ -102,17 +120,16 @@ class SVGD:
         # Entropy term:
         total_ks = tf.reduce_sum(cov, axis=1)
         k_grads = []
-        for i, particle_set in enumerate(particles):
+        for i, particle_set in enumerate(used_particles):
             k_grads.append(tf.gradients(total_ks[i], particle_set))  # (n_particles, particles_dim)
-        # k_grads = tf.reshape(tf.stack(k_grads), [len(particles), -1])
         k_grads = tf.stack([flatten(k_grad) for k_grad in k_grads])
 
         particle_updates = - (weighted_log_p + k_grads)
-        particle_updates = unflatten(particle_updates)
-        particle_updates = [var_update for update_set in particle_updates
-                            for var_update in update_set]
-        particle_vars = [var for var_set in particles
-                         for var in var_set]
+        particle_updates = unflatten(particle_updates)  # (n_particles, latent_vars, latent_dim)
+        particle_updates = stitch_updates(particle_updates)
+        particle_vars = [ed.get_variables(particle_set)[0]
+                         for particle_set
+                         in all_particles]
 
         optimizer = self.optimizer
         self.train_op = optimizer.apply_gradients(zip(particle_updates,
