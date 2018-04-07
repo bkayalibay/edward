@@ -61,7 +61,9 @@ class SVGD:
             for particle_set in six.itervalues(self.latent_vars)
         ]
 
-        # (n_latent_vars, n_particles, latent_dim) -> (n_particles, -1)
+        # (n_latent_vars, n_particles, latent_dim) becomes:
+        # (n_particles, n_latent_vars, latent_dim)
+        # latent_dim is different accross latent_vars
         particles = list(zip(*particles))
 
         def flatten(xs):
@@ -86,8 +88,7 @@ class SVGD:
 
         self.p_log_lik = p_log_lik
 
-        flattened_particles = tf.stack(particles)
-        flattened_particles = tf.reshape(particles, [len(particles), -1])
+        flattened_particles = tf.stack([flatten(ps) for ps in particles])
         cov = self.kernel_fn(flattened_particles)  # (n_particles, n_particles)
 
         log_p_gradients = tf.stack(
@@ -103,7 +104,8 @@ class SVGD:
         k_grads = []
         for i, particle_set in enumerate(particles):
             k_grads.append(tf.gradients(total_ks[i], particle_set))  # (n_particles, particles_dim)
-        k_grads = tf.reshape(tf.stack(k_grads), [len(particles), -1])
+        # k_grads = tf.reshape(tf.stack(k_grads), [len(particles), -1])
+        k_grads = tf.stack([flatten(k_grad) for k_grad in k_grads])
 
         particle_updates = - (weighted_log_p + k_grads)
         particle_updates = unflatten(particle_updates)
