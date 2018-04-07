@@ -3,18 +3,18 @@ import numpy as np
 import tensorflow as tf
 
 import edward as ed
-from edward.models import MultivariateNormalFullCovariance
+from edward.models import MultivariateNormalFullCovariance, Empirical
 
 n_iter = 5000
 n_particles = 10
 
 A = np.array([[0.2260, 0.1652], [0.1652, 0.6779]], dtype="float32")
-mu = np.array([-0.6871, 0.8010], dtype="float32")
+loc = np.array([-0.6871, 0.8010], dtype="float32")
 
-x = MultivariateNormalFullCovariance(mu, A)
-particles = [tf.Variable(tf.random_normal([2])) for _ in range(n_particles)]
+x = MultivariateNormalFullCovariance(loc, A)
+qx = Empirical(params=tf.Variable(tf.random_normal([n_particles, 2])))
 
-latent_vars = {x: particles}
+latent_vars = {x: qx}
 data = {}
 
 inference = ed.SVGD(latent_vars, data, ed.rbf)
@@ -29,5 +29,4 @@ for _ in train_loop:
     mean_log_p = np.mean(info_dict['p_log_lik'])
     train_loop.set_description("ave. log p = {}".format(mean_log_p))
 
-print("Ground truth: {}".format(mu))
-print("SVGD: {}".format(np.mean(sess.run(particles), axis=0)))
+print("True loc: {} | SVGD: {}".format(loc, sess.run(qx.mean())))
