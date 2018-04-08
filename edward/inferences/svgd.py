@@ -2,11 +2,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import six
 import tensorflow as tf
 import numpy as np
-
 import edward as ed
+
+from datetime import datetime
 from edward.util import copy
 
 from collections import OrderedDict
@@ -32,8 +34,9 @@ class SVGD:
         self.data = data
         self.kernel_fn = kernel_fn
 
-    def initialize(self, optimizer):
+    def initialize(self, optimizer, logdir=None, n_print=5):
         self.optimizer = optimizer
+        self.n_print = n_print
         self.loss, grads = self.build_loss_and_gradients()
 
         variables = [var
@@ -41,14 +44,50 @@ class SVGD:
                      in self._all_particles
                      for var in ed.get_variables(particle_set)]
 
+        global_step = tf.Variable(0, trainable=False, name="global_step")
+        self.t = tf.Variable(0, trainable=False, name="iteration")
+        self.increment_t = self.t.assign_add(1)
+
         optimizer = self.optimizer
-        self.train = optimizer.apply_gradients(zip(grads, variables))
+        grads_and_vars = zip(grads, variables)
+        self.train = optimizer.apply_gradients(grads_and_vars,
+                                               global_step=global_step)
+
+        if logdir is not None:
+            self.logging = True
+
+            logdir = os.path.expanduser(logdir)
+            logdir = os.path.join(
+                logdir, datetime.strftime(datetime.utcnow(), "%Y%m%d_%H%M%S"))
+
+            self._summary_key = tf.get_default_graph().unique_name("summaries")
+            self.train_writer = tf.summary.FileWriter(logdir,
+                                                      tf.get_default_graph())
+
+            tf.summary.scalar("loss", self.loss,
+                              collections=[self._summary_key])
+            for grad, var in zip(grads, variables):
+                tf.summary.histogram("gradient/" +
+                                     var.name.replace(':', '/'),
+                                     grad, collections=[self._summary_key])
+                tf.summary.scalar("gradient_norm/" +
+                                  var.name.replace(':', '/'),
+                                  tf.norm(grad),
+                                  collections=[self._summary_key])
+
+            self.summarize = tf.summary.merge_all(key=self._summary_key)
 
     def update(self, feed_dict):
         sess = ed.get_session()
-        loss, _ = sess.run([self.loss, self.train],
-                           feed_dict=feed_dict)
-        return {'loss': loss}
+        loss, t, _ = sess.run([self.loss, self.increment_t, self.train],
+                              feed_dict=feed_dict)
+
+        if self.logging:
+            if t == 1 or t % self.n_print == 0:
+                summary = sess.run(self.summarize, feed_dict)
+                self.train_writer.add_summary(summary, t)
+
+        return {'t': t, 'loss': loss}
 
     def build_loss_and_gradients(self):
         # We want a fixed order of iteration in the loop over particles:
