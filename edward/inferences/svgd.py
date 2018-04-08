@@ -34,13 +34,21 @@ class SVGD:
 
     def initialize(self, optimizer):
         self.optimizer = optimizer
-        self.build_loss_and_gradients()
+        self.loss, grads = self.build_loss_and_gradients()
+
+        variables = [var
+                     for particle_set
+                     in self._all_particles
+                     for var in ed.get_variables(particle_set)]
+
+        optimizer = self.optimizer
+        self.train = optimizer.apply_gradients(zip(grads, variables))
 
     def update(self, feed_dict):
         sess = ed.get_session()
-        p_log_lik, _ = sess.run([self.p_log_lik, self.train_op],
-                                feed_dict=feed_dict)
-        return {'p_log_lik': p_log_lik}
+        loss, _ = sess.run([self.loss, self.train],
+                           feed_dict=feed_dict)
+        return {'loss': loss}
 
     def build_loss_and_gradients(self):
         # We want a fixed order of iteration in the loop over particles:
@@ -96,8 +104,6 @@ class SVGD:
             particle_updates = list(zip(*particle_updates))
             return [tf.stack(ps) for ps in particle_updates]
 
-        self.p_log_lik = p_log_lik
-
         flattened_particles = tf.stack([flatten(ps) for ps in used_particles])
         cov = self.kernel_fn(flattened_particles)  # (n_particles, n_particles)
 
@@ -139,5 +145,8 @@ class SVGD:
                              particle_vars,
                              grad_ys=particle_updates)
 
-        optimizer = self.optimizer
-        self.train_op = optimizer.apply_gradients(zip(grads, particle_vars))
+        loss = - tf.reduce_mean(p_log_lik)
+
+        self._all_particles = all_particles
+
+        return loss, grads

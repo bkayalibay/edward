@@ -26,7 +26,7 @@ sess.run(tf.global_variables_initializer())
 train_loop = tqdm.trange(n_iter)
 for _ in train_loop:
     info_dict = inference.update({})
-    mean_log_p = np.mean(info_dict['p_log_lik'])
-    train_loop.set_description("ave. log p = {}".format(mean_log_p))
+    loss = np.mean(info_dict['loss'])
+    train_loop.set_description("ave. - log p = {}".format(loss))
 
 print("True loc: {} | SVGD: {}".format(loc, sess.run(qx.mean())))
