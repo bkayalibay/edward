@@ -36,6 +36,7 @@ class SVGD:
 
     def initialize(self, optimizer, logdir=None, n_print=5):
         self.optimizer = optimizer
+        self.logging = logdir is not None
         self.n_print = n_print
         self.loss, grads = self.build_loss_and_gradients()
 
@@ -53,8 +54,7 @@ class SVGD:
         self.train = optimizer.apply_gradients(grads_and_vars,
                                                global_step=global_step)
 
-        if logdir is not None:
-            self.logging = True
+        if self.logging:
 
             logdir = os.path.expanduser(logdir)
             logdir = os.path.join(
