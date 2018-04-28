@@ -34,10 +34,15 @@ class SVGD:
         self.data = data
         self.kernel_fn = kernel_fn
 
-    def initialize(self, optimizer, logdir=None, n_print=5):
+    def initialize(self, optimizer, logdir=None, n_print=5, scale=None):
         self.optimizer = optimizer
         self.logging = logdir is not None
         self.n_print = n_print
+
+        if scale is None:
+            scale = {}
+        self.scale = scale
+
         self.loss, grads = self.build_loss_and_gradients()
 
         variables = [var
@@ -110,11 +115,17 @@ class SVGD:
             for z, particles in latent_vars:
                 qz = particles.params[i]
                 dict_swap[z] = qz
-                p_log_lik[i] += tf.reduce_sum(z.log_prob(qz))
+
+            for z, qz in six.iteritems(dict_swap):
+                z_copy = ed.copy(z, dict_swap,
+                                 scope="z_particles_{}".format(i))
+                p_log_lik[i] += self.scale.get(z, 1.0) * tf.reduce_sum(
+                    z_copy.log_prob(qz))
 
             for x, qx in six.iteritems(self.data):
-                x_copy = copy(x, dict_swap, scope="particles_{}".format(i))
-                p_log_lik[i] += tf.reduce_sum(x_copy.log_prob(qx))
+                x_copy = copy(x, dict_swap, scope="x_particles_{}".format(i))
+                p_log_lik[i] += self.scale.get(x, 1.0) * tf.reduce_sum(
+                    x_copy.log_prob(qx))
 
             dict_swaps.append(dict_swap)
 
@@ -161,7 +172,7 @@ class SVGD:
             k_grads.append(tf.gradients(total_ks[i], particle_set))  # (n_particles, particles_dim)
         k_grads = tf.stack([flatten(k_grad) for k_grad in k_grads])
 
-        particle_updates = - (weighted_log_p + k_grads)
+        particle_updates = - (weighted_log_p + k_grads) / float(n_particles)
         particle_updates = unflatten(particle_updates)  # (n_particles, latent_vars, latent_dim)
         particle_updates = stitch_updates(particle_updates)
 
